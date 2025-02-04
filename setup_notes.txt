@@ -1,0 +1,49 @@
+PS C:\WINDOWS\system32> usbipd attach --wsl --busid 1-1
+usbipd: info: Using WSL distribution 'Ubuntu' to attach; the device will be available in all WSL 2 distributions.
+usbipd: info: Detected networking mode 'nat'.
+usbipd: info: Using IP address 172.25.32.1 to reach the host.
+PS C:\WINDOWS\system32> usbipd detach --busid 1-1
+PS C:\WINDOWS\system32> usbipd bind --busid 1-4
+PS C:\WINDOWS\system32> usbipd attach -wsl --busid 1-4
+usbipd: info: Selecting a specific distribution is no longer required. Please file an issue if you believe that the default selection mechanism is not working for you.
+usbipd: error: The WSL distribution 'sl' does not exist. Learn how to list all installed distributions at https://learn.microsoft.com/windows/wsl/basic-commands#install.
+PS C:\WINDOWS\system32> wsl --list --verbose
+  NAME                   STATE           VERSION
+* docker-desktop-data    Stopped         2
+  Ubuntu                 Running         2
+  docker-desktop         Stopped         2
+PS C:\WINDOWS\system32> usbipd attach -wsl Ubuntu --busid 1-4
+Unrecognized command or argument 'Ubuntu'.
+
+usbipd-win 4.4.0
+
+Description:
+  Attaches a USB device to a client.
+
+  Currently, only WSL is supported. Other clients need to perform an attach using client-side tooling.
+
+  Exactly one of the options '--busid' or '--hardware-id' is required.
+  Option '--unplugged' requires '--auto-attach' and '--busid'.
+
+Usage:
+  usbipd attach [options]
+
+Options:
+  -a, --auto-attach                      Automatically re-attach when the device is detached or unplugged
+  -b, --busid <BUSID>                    Attach device having <BUSID>
+  -i, --hardware-id <VID:PID>            Attach device having <VID>:<PID>
+  -w, --wsl <[DISTRIBUTION]> (REQUIRED)  Attach to WSL, optionally specifying the distribution to use
+  -o, --host-ip <IPADDRESS>              Use <IPADDRESS> for WSL to connect back to the host
+  -u, --unplugged                        Allows auto-attaching a currently unplugged device
+  -?, -h, --help                         Show help and usage information
+
+
+PS C:\WINDOWS\system32> usbipd attach --wsl --busid 1-4
+usbipd: info: Using WSL distribution 'Ubuntu' to attach; the device will be available in all WSL 2 distributions.
+usbipd: info: Detected networking mode 'nat'.
+usbipd: info: Using IP address 172.25.32.1 to reach the host.
+PS C:\WINDOWS\system32> usbipd attach --wsl --busid 1-4
+usbipd: info: Using WSL distribution 'Ubuntu' to attach; the device will be available in all WSL 2 distributions.
+usbipd: info: Detected networking mode 'nat'.
+usbipd: info: Using IP address 172.25.32.1 to reach the host.
+PS C:\WINDOWS\system32>
