@@ -14,44 +14,46 @@ import {
 
 import { useDeviceContext } from '../contexts/DeviceContext';
 import { DoseEvent, DoseWindow } from '../types/models';
+import { scheduleForDate } from '../utils/scheduleHelpers';
 
-type RouteParams = { id: string; date: string }; // date = '2025-06-15'
+type RouteParams = { id: string; date: string }; // date = 'YYYY-MM-DD'
 
-/* ─── helper: classify status ────────────────────────────── */
+/* ---------- helper ---------- */
 function getStatus(
   window: DoseWindow,
   events: DoseEvent[],
   targetDate: Date,
 ): 'green' | 'yellow' | 'red' | 'grey' {
   const fulfilled = events.length >= window.required;
-  const today = new Date();
-  if (isAfter(targetDate, today)) return 'grey';
+  if (isAfter(targetDate, new Date())) return 'grey';
   if (fulfilled) return 'green';
   if (events.length > 0) return 'yellow';
   return 'red';
 }
 
-/* ─── screen ─────────────────────────────────────────────── */
+/* ---------- screen ---------- */
 export default function DayDetail() {
-  const [{ devices, events }] = useDeviceContext();
-  const { id, date } = useRoute<{
-    key: string;
-    name: string;
-    params: RouteParams;
-  }>().params;
+  const [{ devices, events, schedules }] = useDeviceContext();
+  const {
+    id: deviceId,
+    date,
+  } = useRoute<{ key: string; name: string; params: RouteParams }>().params;
 
-  const device = devices[id];
+  const device = devices[deviceId];
   const dayDate = parse(date, 'yyyy-MM-dd', new Date());
 
+  /* resolve the schedule version for that day */
+  const schedule = scheduleForDate(schedules, deviceId, date)!;
+
   /* group events by window */
-  const eventsForDay = (events[id] ?? []).filter((e) =>
+  const eventsForDay = (events[deviceId] ?? []).filter((e) =>
     isSameDay(parseISO(e.timestamp), dayDate),
   );
 
   const eventsByWindow: Record<string, DoseEvent[]> = {};
-  device.windows.forEach((w) => (eventsByWindow[w.id] = []));
+  schedule.windows.forEach((w) => (eventsByWindow[w.id] = []));
   eventsForDay.forEach((ev) => {
-    device.windows.forEach((w) => {
+    schedule.windows.forEach((w) => {
       const start = parse(`${date} ${w.start}`, 'yyyy-MM-dd HH:mm', new Date());
       const end = parse(`${date} ${w.end}`, 'yyyy-MM-dd HH:mm', new Date());
       const ts = parseISO(ev.timestamp);
@@ -61,17 +63,16 @@ export default function DayDetail() {
     });
   });
 
-  /* ─── ui ──────────────────────────────────────────────── */
+  /* ---------- ui ---------- */
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text variant="headlineMedium" style={styles.title}>
         {format(dayDate, 'eeee, d LLL yyyy')}
       </Text>
 
-      {device.windows.map((w) => {
+      {schedule.windows.map((w) => {
         const evs = eventsByWindow[w.id];
         const status = getStatus(w, evs, dayDate);
-
         const chipColor =
           status === 'green'
             ? '#34c759'
@@ -112,7 +113,7 @@ export default function DayDetail() {
   );
 }
 
-/* ─── styles ─────────────────────────────────────────────── */
+/* ---------- styles ---------- */
 const styles = StyleSheet.create({
   container: { padding: 16, paddingBottom: 32 },
   title: { marginBottom: 12 },

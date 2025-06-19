@@ -3,6 +3,7 @@ import DeviceSummary from '../screens/DeviceSummary';
 import DeviceSettings from '../screens/DeviceSettings';
 import DayDetail from '../screens/DayDetail';
 import AddDose from '../screens/AddDose';
+import AddWindow from '../screens/AddWindow';
 
 export type DeviceParamList = {
   Summary:  { id: string };

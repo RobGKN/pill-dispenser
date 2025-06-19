@@ -8,23 +8,25 @@ import React, {
   useEffect,
 } from 'react';
 
-import { Device, DoseEvent, DoseWindow } from '../types/models';
+import { Device, DoseEvent, ScheduleVersion } from '../types/models';
 import { devices as mockDevices, events as mockEvents } from '../mocks/mockDevices';
+import { schedules as mockSchedules } from '../mocks/mockSchedules';
 
 /* ─── state shape ──────────────────────────────────────────────── */
 interface State {
   devices: Record<string, Device>;
+  schedules: Record<string, ScheduleVersion[]>;
   events:  Record<string, DoseEvent[]>;          // keyed by deviceId
 }
 
-const initialState: State = { devices: {}, events: {} };
+const initialState: State = { devices: {}, events: {}, schedules: {} };
 
 /* ─── actions ──────────────────────────────────────────────────── */
 type InitAction          = { type: 'INIT';          payload: State };
 type AddDeviceAction     = { type: 'ADD_DEVICE';    payload: Device };
 type UpdateDeviceAction  = { type: 'UPDATE_DEVICE'; payload: { id: string; patch: Partial<Device> } };
-type RemoveWindowAction  = { type: 'REMOVE_WINDOW'; payload: { id: string; windowId: string } };
-type AddWindowAction     = { type: 'ADD_WINDOW';    payload: { id: string; window: DoseWindow } };
+type AddScheduleVersionAction  = { type: 'ADD_SCHEDULE_VERSION'; payload: ScheduleVersion }
+type UpdateScheduleVersionAction  = { type: 'UPDATE_SCHEDULE_VERSION'; payload: ScheduleVersion }
 type LogDoseAction       = { type: 'LOG_DOSE';      payload: { id: string; event: DoseEvent } };
 type NoopAction          = { type: 'NOOP' };
 
@@ -32,8 +34,8 @@ type Action =
   | InitAction
   | AddDeviceAction
   | UpdateDeviceAction
-  | RemoveWindowAction
-  | AddWindowAction
+  | AddScheduleVersionAction
+  | UpdateScheduleVersionAction
   | LogDoseAction
   | NoopAction;
 
@@ -60,29 +62,15 @@ function reducer(state: State, action: Action): State {
       };
     }
 
-    case 'REMOVE_WINDOW': {
-      const { id, windowId } = action.payload;
-      const device = state.devices[id];
+    case 'ADD_SCHEDULE_VERSION': {
+      const v = action.payload;
       return {
         ...state,
-        devices: {
-          ...state.devices,
-          [id]: {
-            ...device,
-            windows: device.windows.filter((w) => w.id !== windowId),
-          },
-        },
-      };
-    }
-
-    case 'ADD_WINDOW': {
-      const { id, window } = action.payload;
-      const device = state.devices[id];
-      return {
-        ...state,
-        devices: {
-          ...state.devices,
-          [id]: { ...device, windows: [...device.windows, window] },
+        schedules: {
+          ...state.schedules,
+          [v.deviceId]: [...(state.schedules[v.deviceId] ?? []), v].sort(
+            (a, b) => a.validFrom.localeCompare(b.validFrom),
+          ),
         },
       };
     }
@@ -112,7 +100,14 @@ export function DeviceProvider({ children }: { children: ReactNode }) {
   /* dev-only mock bootstrap */
   useEffect(() => {
     if (__DEV__) {
-      dispatch({ type: 'INIT', payload: { devices: mockDevices, events: mockEvents } });
+      dispatch({
+        type: 'INIT',
+        payload: {
+          devices: mockDevices,
+          schedules: mockSchedules,   // <-- new
+          events: mockEvents,
+        },
+      });
     }
   }, []);
 

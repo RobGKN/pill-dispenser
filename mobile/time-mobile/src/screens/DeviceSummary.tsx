@@ -13,26 +13,21 @@ import {
   endOfMonth,
   eachDayOfInterval,
   format,
-  isBefore,
-  isSameDay,
   parseISO,
   isAfter,
 } from 'date-fns';
 
+import { scheduleForDate } from '../utils/scheduleHelpers';
 import { useDeviceContext } from '../contexts/DeviceContext';
 import { DoseEvent } from '../types/models';
 
-/* ------------------------------------------------------------------ */
-/*  Utilities                                                         */
-/* ------------------------------------------------------------------ */
-
-/** Returns HH:mm string of the next upcoming window start. */
-function getNextDose(device: any) {
+/* ---------- helpers ---------- */
+function getNextDose(schedule: { windows: any[] }) {
   const now = new Date();
-  const todayMinutes = now.getHours() * 60 + now.getMinutes();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
 
-  const sorted = [...device.windows].sort(
-    (a: any, b: any) =>
+  const sorted = [...schedule.windows].sort(
+    (a, b) =>
       Number(a.start.split(':')[0]) * 60 +
       Number(a.start.split(':')[1]) -
       (Number(b.start.split(':')[0]) * 60 + Number(b.start.split(':')[1])),
@@ -40,16 +35,12 @@ function getNextDose(device: any) {
 
   for (const w of sorted) {
     const [h, m] = w.start.split(':').map(Number);
-    if (h * 60 + m >= todayMinutes) return w.start;
+    if (h * 60 + m >= nowMin) return w.start;
   }
   return `${sorted[0].start} (tomorrow)`;
 }
 
-/** Build marked-dates object for react-native-calendars */
-function buildCalendarMarks(
-  events: DoseEvent[],
-  windows: any[],
-): Record<string, any> {
+function buildCalendarMarks(events: DoseEvent[], windows: any[]) {
   const monthStart = startOfMonth(new Date());
   const monthEnd = endOfMonth(new Date());
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -57,13 +48,13 @@ function buildCalendarMarks(
   const grouped: Record<string, DoseEvent[]> = {};
   events.forEach((e) => {
     const d = format(parseISO(e.timestamp), 'yyyy-MM-dd');
-    grouped[d] = (grouped[d] || []).concat(e);
+    (grouped[d] ??= []).push(e);
   });
 
   const marks: Record<string, any> = {};
   days.forEach((day) => {
     const dateStr = format(day, 'yyyy-MM-dd');
-    const todaysEvents = grouped[dateStr] || [];
+    const todaysEvents = grouped[dateStr] ?? [];
     const met = todaysEvents.length >= windows.length;
 
     marks[dateStr] = {
@@ -78,38 +69,46 @@ function buildCalendarMarks(
         : '#ff3b30',
     };
   });
-
   return marks;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Screen                                                            */
-/* ------------------------------------------------------------------ */
+/* ---------- screen ---------- */
 export default function DeviceSummary() {
-  const { params } = useRoute<any>(); // { id }
+  const route = useRoute(); // { id }
   const nav =
-    useNavigation<NavigationProp<Record<string, object | undefined>>>();
-  const [{ devices, events }] = useDeviceContext();
+    useNavigation<NavigationProp<{ DayDetail: { id: string; date: string }; AddDose: { id: string }; Device: { screen: string; params: { id: string } } }>>();
+  
+    if (!route.params) {
+      return (
+        <View style={styles.center}>
+          <Text>Missing device id. Use Home → select a dispenser.</Text>
+          <Button onPress={() => nav.goBack()}>Go back</Button>
+        </View>
+      );
+    }
 
-  const device = devices[params.id];
+  /* context */
+  const [{ devices, schedules, events }] = useDeviceContext();
+  const device = devices[route.params.id];
+
+  /* resolve today's schedule */
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const todaySchedule = scheduleForDate(schedules, device.id, todayStr)!;
+
   const eventArr = events[device.id] ?? [];
 
   /* derived */
-  const nextDose = getNextDose(device);
+  const nextDose = getNextDose(todaySchedule);
   const marks = React.useMemo(
-    () => buildCalendarMarks(eventArr, device.windows),
-    [eventArr, device.windows],
+    () => buildCalendarMarks(eventArr, todaySchedule.windows),
+    [eventArr, todaySchedule.windows],
   );
 
-  /* when user taps a date */
   const onDayPress = (day: { dateString: string }) => {
-    nav.navigate('DayDetail', {
-        id: device.id,
-        date: day.dateString, //'YYYY-MM-DD'
-    })
+    nav.navigate('DayDetail', { id: device.id, date: day.dateString });
   };
 
-  /* UI ---------------------------------------------------------------- */
+  /* ---------- ui ---------- */
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {/* next dose */}
@@ -136,7 +135,7 @@ export default function DeviceSummary() {
       <Text variant="titleLarge" style={styles.sectionTitle}>
         Dose windows
       </Text>
-      {device.windows.map((w: any) => (
+      {todaySchedule.windows.map((w) => (
         <Card key={w.id} style={styles.windowCard}>
           <Card.Title
             title={w.label ?? 'Untitled window'}
@@ -174,9 +173,7 @@ export default function DeviceSummary() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Styles                                                            */
-/* ------------------------------------------------------------------ */
+/* ---------- styles ---------- */
 const styles = StyleSheet.create({
   container: { padding: 16, paddingBottom: 48 },
   nextCard: { marginBottom: 16 },
@@ -185,4 +182,5 @@ const styles = StyleSheet.create({
   windowCard: { marginBottom: 10 },
   actions: { marginTop: 20 },
   actionBtn: { borderRadius: 8 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' }
 });
